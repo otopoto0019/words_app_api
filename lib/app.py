@@ -12,6 +12,7 @@ argon2 = Argon2(app)
 
 app.config["JWT_SECRET_KEY"] = "".join(random.choice("0123456789abcdefghijklmnopqrstuvwxyz") for _ in range(16))
 jwt = JWTManager(app)
+openai_client = openai.OpenAI(api_key="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")
 
 
 @app.route('/')
@@ -36,14 +37,17 @@ def generate_response():
     data = request.json
     prompt = data.get("prompt", "")
 
-    response = openai.OpenAI().chat.completions.create(
+    if prompt == "":
+        return jsonify({"response": "error"})
+
+    response = openai_client.completions.create(
         model="gpt-3.5-turbo-instruct",
         prompt=prompt,
         max_tokens=50,
         temperature=0.5
     )
 
-    return jsonify({"response": response.choices[0].message})
+    return jsonify({"response": response.choices[0].text})
 
 
 @app.before_request
