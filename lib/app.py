@@ -3,9 +3,9 @@ import random
 import openai
 from flask import Flask, request, jsonify
 from flask_argon2 import Argon2
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required
 
-from lib.sqlite.SqliteHandller import init_sqlite, insert_user, getIdFromHashedUuid
+from lib.sqlite.SqliteHandller import init_sqlite, insert_user, getIdFromUUID, isExistedUUID
 
 app = Flask(__name__)
 argon2 = Argon2(app)
@@ -22,11 +22,22 @@ def hello_world():
 
 @app.route("/register", methods=["post"])
 def register():
-    data = request.get_data()
-    uuid = data.decode("utf8")
-    hashed_uuid = argon2.generate_password_hash(uuid)
-    insert_user(hashed_uuid)
-    id = getIdFromHashedUuid(hashed_uuid)
+    data = request.get_json()
+    uuid = data["uuid"]
+
+    if isExistedUUID(uuid):
+        return jsonify(
+            {
+                "status": "error",
+                "message": "this uuid has already registered"
+            }
+        ), 400
+
+    random_string = data["random_string"]
+    print(random_string)
+    hashed_random_string = argon2.generate_password_hash(random_string)
+    insert_user(uuid, hashed_random_string)
+    id = getIdFromUUID(uuid)
     access_token = create_access_token(identity=id)
     return jsonify(access_token=access_token)
 
@@ -38,7 +49,11 @@ def generate_response():
     prompt = data.get("prompt", "")
 
     if prompt == "":
-        return jsonify({"response": "error"})
+        return jsonify(
+            {
+                "status": "error"
+            }
+        )
 
     response = openai_client.completions.create(
         model="gpt-3.5-turbo-instruct",
@@ -47,7 +62,12 @@ def generate_response():
         temperature=0.5
     )
 
-    return jsonify({"response": response.choices[0].text})
+    return jsonify(
+        {
+            "status": "success",
+            "response": response.choices[0].text
+        }
+    )
 
 
 @app.before_request
