@@ -1,6 +1,9 @@
 import sqlite3
+import trace
 
-DATABASE = "app.sqlite"
+from flask_argon2 import Argon2
+
+DATABASE: str = "app.sqlite"
 
 
 def init_sqlite():
@@ -14,7 +17,7 @@ def create_tables():
         "CREATE TABLE IF NOT EXISTS user ("
         "id INTEGER PRIMARY KEY,"
         "uuid TEXT NOT NULL,"
-        "key TEXT NOT NULL,"
+        "api_key TEXT NOT NULL,"
         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
         ")"
     )
@@ -31,10 +34,10 @@ def create_tables():
     conn.close()
 
 
-def insert_user(uuid, hashed_key):
+def insert_user(uuid, api_key):
     conn = sqlite3.connect(DATABASE)
     cur = conn.cursor()
-    cur.execute("INSERT INTO user (uuid, key) VALUES (?, ?)", (uuid, hashed_key))
+    cur.execute("INSERT INTO user (uuid, api_key) VALUES (?, ?)", (uuid, api_key))
     conn.commit()
     conn.close()
     return
@@ -54,6 +57,19 @@ def isExistedUUID(uuid):
     cur = conn.cursor()
     cur.execute("SELECT * FROM user WHERE uuid = ?", (uuid,))
     result = cur.fetchall()
-
     return len(result) > 0
 
+
+def is_valid_api_key(api_key, argon2: Argon2):
+    conn = sqlite3.connect(DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT api_key FROM user")
+
+    result = cur.fetchall()
+
+    for hashed_api_key in result:
+        if argon2.check_password_hash(hashed_api_key[0], api_key):
+            return True
+
+    conn.close()
+    return False
