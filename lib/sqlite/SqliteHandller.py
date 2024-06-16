@@ -1,12 +1,34 @@
+import random
 import sqlite3
+import string
 
 from flask_argon2 import Argon2
 
 DATABASE: str = "app.sqlite"
 
 
-def init_sqlite():
+def generate_api_key():
+    return "".join(random.choices(string.ascii_letters + string.digits, k=64))
+
+
+def init_sqlite(argon2: Argon2):
     create_tables()
+    add_admin(argon2)
+
+
+def add_admin(argon2: Argon2):
+    conn = sqlite3.connect(DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM user WHERE uuid = ?", ("admin",))
+    result = cur.fetchall()
+    if not result:
+        api_key = generate_api_key()
+        hashed_api_key = argon2.generate_password_hash(api_key)
+        cur.execute("INSERT INTO user(uuid, api_key, is_admin) VALUES(?, ?, ?)", ("admin", hashed_api_key, True))
+        conn.commit()
+        print(api_key)
+    conn.close()
+    return
 
 
 def create_tables():
@@ -17,6 +39,7 @@ def create_tables():
         "id INTEGER PRIMARY KEY,"
         "uuid TEXT NOT NULL,"
         "api_key TEXT NOT NULL,"
+        "is_admin BOOLEAN DEFAULT FALSE,"
         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
         ")"
     )
@@ -100,3 +123,13 @@ def get_usages(api_key, argon2: Argon2):
         result.append(usage)
 
     return result
+
+
+def is_admin(api_key, argon2: Argon2):
+    conn = sqlite3.connect(DATABASE)
+    cur = conn.cursor()
+    user_id = get_user_id_from_api_key(api_key, argon2)
+    cur.execute("SELECT is_admin FROM user WHERE id = ?", (user_id,))
+    result = cur.fetchall()
+    conn.close()
+    return len(result) == 1

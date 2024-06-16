@@ -10,7 +10,7 @@ from flask_cors import CORS
 from lib.constants import UPPER_LIMIT, OPENAI_API_KEY, MODEL_NAME, MAX_TOKEN, TEMPERATURE, EXCEPTION_MESSAGE, \
     API_KEY_HEADER_NAME
 from lib.sqlite.SqliteHandller import init_sqlite, insert_user, is_existed_uuid, is_valid_api_key, \
-    insert_usage, get_usages
+    insert_usage, get_usages, is_admin
 
 app = Flask(__name__)
 argon2 = Argon2(app)
@@ -35,14 +35,14 @@ def require_api_key(func):
 
 
 def is_over_limit(api_key):
+    if is_admin(api_key, argon2):
+        return False
     counts = 0
     current_timestamp = datetime.now()
     usages = get_usages(api_key, argon2)
     for usage in usages:
         timestamp = datetime.strptime(usage[3], "%Y-%m-%d %H:%M:%S")
         counts += (current_timestamp - timestamp < timedelta(hours=24))
-
-    print(counts)
     return counts >= UPPER_LIMIT
 
 
@@ -86,7 +86,7 @@ def generate_response():
 
 @app.before_request
 def init():
-    init_sqlite()
+    init_sqlite(argon2)
 
 
 if __name__ == "__main__":
