@@ -25,7 +25,7 @@ def create_tables():
         "id INTEGER PRIMARY KEY,"
         "user_id INTEGER,"
         "response TEXT,"
-        "last_used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
         "FOREIGN KEY (user_id) REFERENCES user (id)"
         ")"
     )
@@ -87,3 +87,16 @@ def is_valid_api_key(api_key, argon2: Argon2):
 
     conn.close()
     return False
+
+
+def get_usages(api_key, argon2: Argon2):
+    result = []
+    user_id = get_user_id_from_api_key(api_key, argon2)
+    conn = sqlite3.connect(DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM usage WHERE user_id = ?", (user_id, ))
+    usages_result = cur.fetchall()
+    for usage in usages_result:
+        result.append(usage)
+
+    return result
